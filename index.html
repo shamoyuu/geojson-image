@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta http-equiv="X-UA-Compatible" content="ie=edge">
+		<title>Canvas</title>
+		<script src="lib/jquery-1.12.4.min.js"></script>
+		<script src="lib/createjs.min.js"></script>
+		<script src="js/rect.js" type="text/javascript" charset="utf-8"></script>
+
+		<style>
+			* {
+				padding: 0;
+				margin: 0;
+			}
+			
+			body {
+				background: url(img/bcg.jpg) fixed;
+				background-size: cover;
+				font-family: 微软雅黑;
+			}
+			
+			.main-body {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+			}
+			
+			canvas {
+				display: block;
+				margin: 0 260px 0 110px;
+				border: 1px solid #eee;
+				cursor: -webkit-grab;
+			}
+			
+			.buttons {
+				position: absolute;
+				top: -10px;
+				left: 0;
+				font-size: 0;
+				text-align: center;
+			}
+			
+			.buttons input[type="radio"] {
+				position: absolute;
+				opacity: 0;
+			}
+			
+			label {
+				position: relative;
+				box-sizing: border-box;
+				display: block;
+				width: 100px;
+				height: 24px;
+				line-height: 24px;
+				padding: 3px 0;
+				margin: 10px 0;
+				outline: none;
+				border: none;
+				font-size: 12px;
+				color: #fff;
+				cursor: pointer;
+				transition: all 0.1s;
+			}
+			
+			label:active {
+				transform: translate(2px, 2px);
+			}
+			
+			.buttons input[type="radio"]+span {
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				left: 0;
+				right: 0;
+				height: 100%;
+				border: 1px solid transparent;
+				background: #ccc;
+				color: #666;
+				user-select: none;
+			}
+			
+			.buttons input[type="radio"]:checked+span {
+				border-color: #a26504;
+				background: #f80;
+				color: #fff;
+			}
+			
+			.tool-tip {
+				width: 100px;
+				font-size: 14px;
+				color: #ffc888;
+				text-align: left;
+				word-break: break-all;
+				filter: drop-shadow(0 0 1px #f00);
+			}
+			
+			.tool-tip > span {
+				color: #f8ff95;
+			}
+			
+			.info-table {
+				position: absolute;
+				top: 0;
+				right: 0;
+				width: 250px;
+			}
+			
+			.info-table table {
+				box-sizing: border-box;
+				width: 100%;
+				background: #fff;
+				border-collapse: collapse;
+				border-spacing: 0;
+				border: 1px solid #939598;
+				font-size: 14px;
+			}
+			
+			.info-table table td {
+				height: 24px;
+				padding: 0 5px;
+				word-break: break-all;
+				white-space: nowrap;
+				border-right: 1px solid #939598;
+				border-bottom: 1px solid #939598;
+			}
+			.info-table table tr:not(:first-child) td:last-child {
+				font-size: 0;
+			}
+			
+			.info-table table td input {
+				box-sizing: border-box;
+				width: 100%;
+				height: 100%;
+				padding: 0;
+				margin: 0;
+				border: none;
+				outline: none;
+				background: transparent;
+			}
+			
+			.delete-btn {
+				box-sizing: border-box;
+				width: 100px;
+				height: 25px;
+				margin-top: 10px;
+				border: none;
+				border-radius: 3px;
+				outline: none;
+				font-size: 12px;
+				color: #f80;
+				background: #fff;
+				cursor: pointer;
+				transition: all 0.1s;
+			}
+			
+			.delete-btn:active {
+				transform: translate(2px, 2px);
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="main-body">
+			<div class="buttons">
+				<label><input type="radio" name="toolType" value="0" onchange="changeToolType(0)" checked /><span>移动工具</span></label>
+				<label><input type="radio" name="toolType" value="1" onchange="changeToolType(1)" /><span>矩形工具</span></label>
+				<label><input type="radio" name="toolType" value="2" onchange="changeToolType(2)" /><span>多边形工具</span></label>
+				<div class="tool-tip">工具提示</div>
+			</div>
+			<canvas id="canvas" width="800" height="600"></canvas>
+			<div class="info-table">
+				<table border="0">
+					<tr>
+						<td width="80px">ID</td>
+						<td class="id-td"></td>
+					</tr>
+					<tr>
+						<td>x坐标</td>
+						<td><input class="x-input" type="text" oninput="changeItemProperty(0)" maxlength="4" value="" /></td>
+					</tr>
+					<tr>
+						<td>y坐标</td>
+						<td><input class="y-input" type="text" oninput="changeItemProperty(1)" maxlength="4" value="" /></td>
+					</tr>
+					<tr>
+						<td>宽度</td>
+						<td><input class="width-input" type="text" oninput="changeItemProperty(2)" maxlength="4" value="" /></td>
+					</tr>
+					<tr>
+						<td>高度</td>
+						<td><input class="height-input" type="text" oninput="changeItemProperty(3)" maxlength="4" value="" /></td>
+					</tr>
+				</table>
+				<div style="text-align: center;">
+					<button class="delete-btn" type="button" onclick="deleteItem()">删除</button>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			var toolType = 0;
+			var selectedItem = null;
+
+			var canvas = document.querySelector('#canvas');
+			var stage = new createjs.Stage(canvas);
+			var container = new createjs.Container();
+			stage.addChild(container);
+
+			var shapes = [];
+
+			var rectPoint = {
+				x1: 0,
+				y1: 0,
+				x2: 0,
+				y2: 0
+			}
+			var isStartPaint = false;
+
+			// 只用于开始绘制矩形
+			canvas.addEventListener("mousedown", function(e) {
+				if(toolType != 1) return false;
+
+				rectPoint.x1 = e.offsetX;
+				rectPoint.y1 = e.offsetY;
+				isStartPaint = true;
+				var rect = new Rect();
+				shapes.push(rect);
+				container.addChild(rect)
+			});
+			// 鼠标在canvas上移动
+			canvas.addEventListener("mousemove", function(e) {
+				rectPoint.x2 = e.offsetX;
+				rectPoint.y2 = e.offsetY;
+				
+				
+				
+				if(isStartPaint && isDragging == false) {
+					shapes[shapes.length - 1].paintDashed(rectPoint.x1, rectPoint.y1, rectPoint.x2, rectPoint.y2);
+				}
+				if(isDragging) {
+					dragItem.x = Math.round(e.offsetX - dragPoint.x);
+					dragItem.y = Math.round(e.offsetY - dragPoint.y);
+					updateInfoTable(dragItem);
+				}
+			});
+			//鼠标抬起
+			canvas.addEventListener("mouseup", function(e) {
+				if(toolType == 0) {
+					isDragging = false;
+					dragPoint = {
+						x: 0,
+						y: 0
+					};
+					dragItem = null;
+					$("canvas").css("cursor", "-webkit-grab");
+				} else if(toolType == 1) {
+					if(isStartPaint == false) return false;
+					isStartPaint = false;
+					var areaSize = Math.abs((rectPoint.x2 - rectPoint.x1) * (rectPoint.y2 - rectPoint.y1));
+					console.info("area", areaSize)
+
+					if(areaSize < 360) {
+						container.removeChild(shapes[shapes.length - 1])
+						shapes.splice(shapes.length - 1, 1);
+						return false;
+					}
+					shapes[shapes.length - 1].paint(rectPoint.x1, rectPoint.y1, rectPoint.x2, rectPoint.y2);
+
+					rectPoint = {
+						x1: 0,
+						y1: 0,
+						x2: 0,
+						y2: 0
+					}
+					
+					updateInfoTable(shapes[shapes.length - 1]);
+				} else if(toolType == 2) {
+					
+					changeToolType(0);
+				}
+			});
+
+			var isDragging = false;
+			var dragPoint = {
+				x: 0,
+				y: 0
+			}
+			var dragItem = null;
+			// 鼠标在元素上按下，开始移动
+			stage.addEventListener("mousedown", function(e){
+		    	if(toolType == 0) {
+		        	if(e.target.shapeId) {
+		        		updateInfoTable(e.target);
+		        		$("canvas").css("cursor", "-webkit-grabbing");
+		        		isDragging = true;
+		        		dragPoint = {
+				        	x: e.stageX - e.target.x,
+				        	y: e.stageY - e.target.y
+				        };
+				        dragItem = e.target;
+		        	}
+		    	}
+		    });
+
+			createjs.Ticker.setFPS(45);
+			createjs.Ticker.on("tick", function() {
+				stage.update();
+			});
+		</script>
+
+		<script type="text/javascript">
+			changeToolType(0);
+			function changeToolType(value) {
+				$("input[value=" + value + "]").prop("checked", true)
+				toolType = value;
+				if(value == 0) {
+					$("canvas").css("cursor", "-webkit-grab");
+					$(".tool-tip").html("<span>移动工具：</span>拖动元素可以进行移动，点击进行选择");
+				} else if(value == 1) {
+					$("canvas").css("cursor", "url(img/rect.cur), auto");
+					$(".tool-tip").html("<span>矩形绘制工具：</span>鼠标拖动创建矩形，尽量不要重叠");
+				} else if(value == 2) {
+					$("canvas").css("cursor", "url(img/poly.cur), auto");
+					$(".tool-tip").html("<span>多边形绘制工具：</span>鼠标点击创建多边形的点，尽量不要重叠");
+				}
+			}
+			
+			function updateInfoTable(item){
+				selectedItem = item;
+				$(".x-input").val(item.x);
+				$(".y-input").val(item.y);
+				$(".width-input").val(item.graphics.command.w);
+				$(".height-input").val(item.graphics.command.h);
+				$(".id-td").text(item.shapeId);
+			}
+			
+			function changeItemProperty(type){
+				if(selectedItem == null) return false;
+				
+				if(type == 0) {
+					selectedItem.x = $(".x-input").val() || 0;
+				}
+				else if(type == 1) {
+					selectedItem.y = $(".y-input").val() || 0;
+				}
+				else if(type == 2) {
+					selectedItem.paint(selectedItem.x, selectedItem.y, selectedItem.x + parseInt($(".width-input").val() || 0), selectedItem.y + selectedItem.graphics.command.h)
+				}
+				else if(type == 3) {
+					selectedItem.paint(selectedItem.x, selectedItem.y, selectedItem.x + selectedItem.graphics.command.w, selectedItem.y + parseInt($(".height-input").val() || 0))
+				}
+			}
+			
+			function deleteItem(){
+				if(selectedItem == null) return false;
+				
+				for(var i = 0; i <shapes.length; i++) {
+					if(shapes[i].shapeId == selectedItem.shapeId) {
+						shapes.splice(i, 1);
+					}
+				}
+				
+				container.removeChild(selectedItem);
+				
+				$(".x-input").val("");
+				$(".y-input").val("");
+				$(".width-input").val("");
+				$(".height-input").val("");
+				$(".id-td").text("");
+			}
+		</script>
+	</body>
+
+</html>
